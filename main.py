@@ -15,6 +15,7 @@ from anyascii import anyascii
 from bs4 import BeautifulSoup
 import requests as req
 from faker import Faker
+import pandas as pd
 
 fake = Faker()
 
@@ -81,16 +82,43 @@ with open('prenume_fete.txt', 'r') as f:
 
 ################## generare adrese romanesti pe baza judete.json ##################
 
-orase = []
-judete = open("./venv/judete.json")
-data = json.load(judete)
-judete.close()
-for i in range(0, len(data["judete"])):
-    for j in range(0, len(data["judete"][i]["localitati"])):
-        if len(data['judete'][i]['localitati'][j]['nume']) == len(data['judete'][i]['localitati'][j]['nume'].encode()):
-            orase.append(str(data['judete'][i]['localitati'][j]['nume']))
-        else:
-            orase.append(str(data['judete'][i]['localitati'][j]['simplu']))
+judete_localitati = {}
+with open('venv/judete.json', 'r', encoding='utf-8') as f:
+    judete = json.load(f)
+    lista_judete = []
+    lista_localitati = []
+    for i in range(0, len(judete['judete'])):
+        judet = anyascii(judete['judete'][i]['nume'])
+        lista_judete.append(judet)
+        localitati = []
+        for j in range(0, len(judete['judete'][i]['localitati'])):
+            try:
+                localitate = judete['judete'][i]['localitati'][j]['simplu']
+            except KeyError:
+                localitate = judete['judete'][i]['localitati'][j]['nume']
+            localitati.append(localitate)
+        lista_localitati.append(localitati)
+    judete_localitati = dict(zip(lista_judete, lista_localitati))
+
+############################################################
+
+################## dictionar pentru a determina localitatile dintr-un judet ##################
+
+url = 'https://ro.wikipedia.org/wiki/Cod_numeric_personal_(Rom%C3%A2nia)'
+page = req.get(url)
+soup = BeautifulSoup(page.content, 'html.parser')
+table = soup.find_all('table')[3]
+rows = table.find_all('tr')
+lista_judete = []
+lista_coduri = []
+for row in rows:
+    rand = row.find('td')
+    if rand:
+        lista_coduri.append(str(rand.text).replace('\n', ''))
+    judet = row.find_next('td').find_next('td').text
+    lista_judete.append(anyascii(judet.replace('\n', '')))
+lista_judete.pop(0)
+coduri_judete = dict(zip(lista_coduri, lista_judete))
 
 ############################################################
 
@@ -210,14 +238,7 @@ lista_specificatii_locomotive = dict(zip(lista_locomotive_electrice, zip(zip(lis
 
 ############ zona de marfuri ############
 
-lista_marfuri = [["Ceapa", "Cartofi", "Castraveti", "Morcovi", "Rosii", "Vinete", "Usturoi", "Ardei",
-                  "Castraveti", "Grau",
-                  "Faina", "Orz", "Ovaz", "Porumb", "Soia", "Mere", "Pere", "Prune", "Cirese", "Visine",
-                  "Capsuni", "Struguri", "Mure", "Zmeura", "Cirese", "Cocos", "Banane", "Mango", "Papaya"],
-                 ["Ciment", "Ciment portland", "Ciment armat", "Ciment de constructii"],
-                 ["Chimicale", "Combustibil", "Ulei extravirgin", "Petrol", "Parafina"]]
-
-lista_UM = ["t", "buc", "m3"]
+df = pd.read_csv('marfuri.csv', encoding='windows-1252')
 
 ####################################################################################################
 
@@ -260,9 +281,11 @@ def genereaza_conductor(x):
     anul_nasterii = random.randint(57, 99)
     luna_nasterii = random.randint(1, 12)
     ziua_nasterii = random.randint(1, 28)
-    judetul = random.randint(1, 41)
+    judetul = list(range(1, 41))
+    judetul.extend([51, 52])
+    judetul = random.choice(judetul)
     secventa = random.randint(1, 9)
-
+    judet_string = ''
     cnp = str(sexul)
     if anul_nasterii < 10:
         cnp += "0" + str(anul_nasterii)
@@ -277,9 +300,10 @@ def genereaza_conductor(x):
     else:
         cnp += str(ziua_nasterii)
     if judetul < 10:
-        cnp += "0" + str(judetul)
+        judet_string += "0" + str(judetul)
     else:
-        cnp += str(judetul)
+        judet_string += str(judetul)
+    cnp += judet_string
     cnp += str(secventa)
     secventa = random.randint(1, 9)
     cnp += str(secventa)
@@ -340,7 +364,9 @@ def genereaza_conductor(x):
               "Lalelelor", "Castanilor", "I. L. Caragiale", "Rozelor", "Viitorului", "Traian", "Stejarului",
               "Nicolae Iorga", "Mihail Sadoveanu", "Cuza Voda", "Narciselor", "Izvorului", "Muncii"]
 
-    oras = random.choice(orase)
+    # generare oras in functie de judet_string
+    oras_key = coduri_judete[judet_string]
+    oras = random.choice(judete_localitati[oras_key])
     strada = random.choice(strazi)
     numar_casa = random.randint(1, 100)
     numar_bloc = random.randint(1, 100)
@@ -420,27 +446,22 @@ def genereaza_locomotiva(x):
     fisier_iesire.write(rezultat)
 
 
-# functie pentru a genera date de intrare pentru tabela Marfuri
+# functie pentru a genera date pentru tabela Marfuri
 
 def genereaza_marfuri():
-    id_marfa = 0
-    index = 0
-    for grupa in lista_marfuri:
-        for element in grupa:
-            id_marfa += 1
-            id_marfuri.append(id_marfa)
-            denumire = element
-            UM = lista_UM[index]
-            if index == 0:
-                pret_unitar = round(random.uniform(1, 10), 2)
-            elif index == 1:
-                pret_unitar = round(random.uniform(25, 100), 2)
-            else:
-                pret_unitar = round(random.uniform(100, 1000), 2)
-            fisier_iesire.write("insert into marfuri(id_marfa, denumire, UM, pret_unitar)\n")
-            rezultat = "values(" + str(id_marfa) + ", '" + denumire + "', '" + UM + "', " + str(pret_unitar) + ");\n"
-            fisier_iesire.write(rezultat)
-        index += 1
+    for index_, marfa in df.iterrows():
+        id_marfa = index_
+        id_marfuri.append(id_marfa)
+        nume_marfa = marfa[0].replace("'", "''")
+        descriere_marfa = marfa[1].replace("'", "''")
+        um_marfa = marfa[2]
+        pret = marfa[3]
+        fisier_iesire.write("insert into marfuri_noi(id_marfa, denumire, descriere, um, pret_unitar)\n")
+        rezultat = "values(" + str(id_marfa) + ", '" + nume_marfa + "', '" + descriere_marfa + "', '" + um_marfa + "', " \
+                                                                                                              "" + \
+                   str(pret) + ");\n"
+        fisier_iesire.write(rezultat)
+
 
 
 # functie pentru a genera date de intrare pentru tabela Detalii_Transporturi
