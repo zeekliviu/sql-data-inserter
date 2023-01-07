@@ -274,7 +274,7 @@ def genereaza_conductor(x):
     # urmatoarele 2 cifre reprezinta luna nasterii (ex: 12 pentru decembrie)
     # urmatoarele 2 cifre reprezinta ziua nasterii
     # urmatoarele 2 cifre reprezinta judetul de domiciliu
-    # urmatoarele  3 cifre reprezinta seria
+    # urmatoarele 3 cifre reprezinta seria
     # ultimele cifra reprezinta cifra de control
 
     sexul = random.randint(1, 2)
